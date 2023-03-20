@@ -3,6 +3,7 @@
 #include "utils.h"
 
 #include <cassert>
+#include <cinttypes>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -105,8 +106,22 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
     {
         uint32_t magic;
         fin.read((char *) &magic, sizeof(magic));
-        if (magic != 0x67676d6c) {
+        if (magic == FILE_MAGIC_UNVERSIONED) {
+            fprintf(stderr, "%s: invalid model file '%s' (too old, regenerate your model files!)\n",
+                    __func__, fname.c_str());
+            return false;
+        }
+        if (magic != FILE_MAGIC) {
             fprintf(stderr, "%s: invalid model file '%s' (bad magic)\n", __func__, fname.c_str());
+            return false;
+        }
+
+        uint32_t format_version;
+        fin.read((char *) &format_version, sizeof(format_version));
+
+        if (format_version != FILE_VERSION) {
+            fprintf(stderr, "%s: invalid model file '%s' (unsupported format version %" PRIu32 ", expected %d)\n",
+                    __func__, fname.c_str(), format_version, FILE_VERSION);
             return false;
         }
     }
@@ -154,8 +169,12 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
             word.resize(len);
             fin.read((char *) word.data(), len);
 
+            float score;
+            fin.read((char *) &score, sizeof(score));
+
             vocab.token_to_id[word] = i;
             vocab.id_to_token[i] = word;
+            vocab.score[i] = score;
 
             //if (i < 30000) {
             //    fprintf(stderr, "%s: vocab[%d] = '%s'\n", __func__, i, word.c_str());
