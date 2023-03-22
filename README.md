@@ -5,14 +5,20 @@
 
 Inference of [LLaMA](https://arxiv.org/abs/2302.13971) model in pure C/C++
 
+---
+
+**TEMPORARY NOTICE:**
+Big code change incoming: https://github.com/ggerganov/llama.cpp/pull/370
+
+Do not merge stuff until we merge this. Probably merge will happen on March 22 ~6:00am UTC
+
+---
+
 **Hot topics:**
 
 - [Added Alpaca support](https://github.com/ggerganov/llama.cpp#instruction-mode-with-alpaca)
 - Cache input prompts for faster initialization: https://github.com/ggerganov/llama.cpp/issues/64
 - Create a `llama.cpp` logo: https://github.com/ggerganov/llama.cpp/issues/105
-
-**TEMPORARY NOTICE:**
-If you're updating to the latest master, you will need to regenerate your model files as the format has changed.
 
 ## Description
 
@@ -178,10 +184,15 @@ If you want a more ChatGPT-like experience, you can run in interactive mode by p
 In this mode, you can always interrupt generation by pressing Ctrl+C and enter one or more lines of text which will be converted into tokens and appended to the current context. You can also specify a *reverse prompt* with the parameter `-r "reverse prompt string"`. This will result in user input being prompted whenever the exact tokens of the reverse prompt string are encountered in the generation. A typical use is to use a prompt which makes LLaMa emulate a chat between multiple users, say Alice and Bob, and pass `-r "Alice:"`.
 
 Here is an example few-shot interaction, invoked with the command
-```
-./main -m ./models/13B/ggml-model-q4_0.bin -n 256 --repeat_penalty 1.0 --color -i -r "User:" -f prompts/chat-with-bob.txt
 
+```bash
+# default arguments using 7B model
+./chat.sh
+
+# custom arguments using 13B model
+./main -m ./models/13B/ggml-model-q4_0.bin -n 256 --repeat_penalty 1.0 --color -i -r "User:" -f prompts/chat-with-bob.txt
 ```
+
 Note the use of `--color` to distinguish between user input and generated text.
 
 ![image](https://user-images.githubusercontent.com/1991296/224575029-2af3c7dc-5a65-4f64-a6bb-517a532aea38.png)
@@ -192,11 +203,10 @@ First, download the `ggml` Alpaca model into the `./models` folder:
 
 ```
 # use one of these
-# NOTE: these are copied from the alpaca.cpp repo - not sure how long these will work
 # TODO: add a script to simplify the download
-curl -o ggml-alpaca-7b-q4.bin -C - https://gateway.estuary.tech/gw/ipfs/QmQ1bf2BTnYxq73MFJWu1B7bQ2UD6qG7D7YDCxhTndVkPC
-curl -o ggml-alpaca-7b-q4.bin -C - https://ipfs.io/ipfs/QmQ1bf2BTnYxq73MFJWu1B7bQ2UD6qG7D7YDCxhTndVkPC
-curl -o ggml-alpaca-7b-q4.bin -C - https://cloudflare-ipfs.com/ipfs/QmQ1bf2BTnYxq73MFJWu1B7bQ2UD6qG7D7YDCxhTndVkPC
+curl -o ./models/ggml-alpaca-7b-q4.bin -C - https://gateway.estuary.tech/gw/ipfs/QmUp1UGeQFDqJKvtjbSYPBiZZKRjLp8shVP9hT8ZB9Ynv1
+curl -o ./models/ggml-alpaca-7b-q4.bin -C - https://ipfs.io/ipfs/QmUp1UGeQFDqJKvtjbSYPBiZZKRjLp8shVP9hT8ZB9Ynv1
+curl -o ./models/ggml-alpaca-7b-q4.bin -C - https://cloudflare-ipfs.com/ipfs/QmUp1UGeQFDqJKvtjbSYPBiZZKRjLp8shVP9hT8ZB9Ynv1
 ```
 
 Now run the `main` tool like this:
@@ -219,10 +229,24 @@ Sample run:
 There 26 letters in the English Alphabet
 > What is the most common way of transportation in Amsterdam?
 The majority (54%) are using public transit. This includes buses, trams and metros with over 100 lines throughout the city which make it very accessible for tourists to navigate around town as well as locals who commute by tram or metro on a daily basis
-> List 5 words that start with "ca".                                                                       
+> List 5 words that start with "ca".
 cadaver, cauliflower, cabbage (vegetable), catalpa (tree) and Cailleach.
 > 
 ```
+
+### Obtaining and verifying the Facebook LLaMA original model and Stanford Alpaca model data
+
+* The LLaMA models are officially distributed by Facebook and will never be provided through this repository. See this [Pull Request in Facebook's LLaMA repository](https://github.com/facebookresearch/llama/pull/73/files) if you need to obtain access to the model data.
+
+* Please verify the sha256 checksums of all of your `consolidated*.pth` and corresponding converted `ggml-model-*.bin` model files to confirm that you have the correct model data files before creating an issue relating to your model files.
+
+The following command will verify if you have all possible latest files in your self-installed `./models` subdirectory:
+
+`sha256sum --ignore-missing -c SHA256SUMS` on Linux
+
+or
+
+`shasum -a 256 --ignore-missing -c SHA256SUMS` on macOS
 
 ### Android
 
