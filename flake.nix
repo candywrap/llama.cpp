@@ -28,8 +28,11 @@
           ];
           installPhase = ''
             mkdir -p $out/bin
-            mv llama $out/bin/llama
-            mv quantize $out/bin/quantize
+            mv bin/main $out/bin/llama
+            mv bin/quantize $out/bin/quantize
+            mv bin/embedding $out/bin/embedding
+            mv bin/perplexity $out/bin/perplexity
+
             echo "#!${llama-python}/bin/python" > $out/bin/convert-pth-to-ggml
             cat ${./convert-pth-to-ggml.py} >> $out/bin/convert-pth-to-ggml
             chmod +x $out/bin/convert-pth-to-ggml

@@ -36,7 +36,8 @@ fname_out = sys.argv[3]
 
 fout = open(fname_out, "wb")
 
-fout.write(struct.pack("i", 0x67676d6c)) # magic: ggml in hex
+fout.write(struct.pack("i", 0x67676d66)) # magic: ggmf in hex
+fout.write(struct.pack("i", 1)) # file version
 fout.write(struct.pack("i", n_vocab))
 fout.write(struct.pack("i", n_embd))
 fout.write(struct.pack("i", n_mult))
@@ -49,38 +50,37 @@ fout.write(struct.pack("i", 4))
 # This loop unchanged from convert-pth-to-ggml.py:
 for i in range(tokenizer.vocab_size()):
     if tokenizer.is_unknown(i):
-        # "<unk>" token (translated as ??)
-        text = " \u2047 ".encode("utf-8")
-        fout.write(struct.pack("i", len(text)))
-        fout.write(text)
+        text = " \u2047 ".encode()
     elif tokenizer.is_control(i):
-        # "<s>"/"</s>" tokens
-        fout.write(struct.pack("i", 0))
+        text = b""
     elif tokenizer.is_byte(i):
-        # "<U+XX>" tokens (which may be invalid UTF-8)
         piece = tokenizer.id_to_piece(i)
         if len(piece) != 6:
-            print("Invalid token: " + piece)
+            print(f"Invalid token: {piece}")
             sys.exit(1)
         byte_value = int(piece[3:-1], 16)
-        fout.write(struct.pack("i", 1))
-        fout.write(struct.pack("B", byte_value))
+        text = struct.pack("B", byte_value)
     else:
-        # normal token. Uses U+2581 (LOWER ONE EIGHTH BLOCK) to represent spaces.
-        text = tokenizer.id_to_piece(i).replace("\u2581", " ").encode("utf-8")
-        fout.write(struct.pack("i", len(text)))
-        fout.write(text)
+        text = tokenizer.id_to_piece(i).replace("\u2581", " ").encode()
+    fout.write(struct.pack("i", len(text)))
+    fout.write(text)
+    fout.write(struct.pack("f", tokenizer.get_score(i)))
 
 def write_header(shape, dst_name, ftype_cur):
-    sname = dst_name.encode('utf-8')
+    sname = dst_name.encode()
     fout.write(struct.pack("iii", len(shape), len(sname), ftype_cur))
     fout.write(struct.pack("i" * len(shape), *shape[::-1]))
     fout.write(sname)
 
+    # ensure tensor data is aligned
+    tensor_data_offset = fout.tell()
+    tensor_data_offset = (tensor_data_offset + 31) & -32
+    fout.seek(tensor_data_offset)
+
 def convert_non_q4(src_name, dst_name):
     v = model[src_name]
     shape = v.shape
-    print("Processing non-Q4 variable: " + src_name + " with shape: ", shape, " and type: ", v.dtype)
+    print(f"Processing non-Q4 variable: {src_name} with shape: {shape} and type: {v.dtype}")
     if len(shape) == 1:
         print("  Converting to float32")
         v = v.to(torch.float32)
@@ -105,7 +105,7 @@ def convert_q4(src_name, dst_name, permute=False):
     # Each int32 item is actually 8 int4 items packed together, and it's transposed.
     shape = (qweight.shape[0], qweight.shape[1] * 8)
 
-    print("Processing Q4 variable: " + src_name + " with shape: ", shape)
+    print(f"Processing Q4 variable: {src_name} with shape: {shape}")
 
     # The output format has the int4 weights in groups of 32 rather than 8.
     # It looks like this:
@@ -168,5 +168,5 @@ for i in range(n_layer):
 
 fout.close()
 
-print("Done. Output file: " + fname_out)
-print("")
+print(f"Done. Output file: {fname_out}")
+print()

@@ -35,6 +35,10 @@ CFLAGS   = -I.              -O3 -DNDEBUG -std=c11   -fPIC
 CXXFLAGS = -I. -I./examples -O3 -DNDEBUG -std=c++11 -fPIC
 LDFLAGS  =
 
+# warnings
+CFLAGS   += -Wall -Wextra -Wpedantic -Wcast-qual -Wdouble-promotion -Wshadow -Wstrict-prototypes -Wpointer-arith -Wno-unused-function
+CXXFLAGS += -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-multichar
+
 # OS specific
 # TODO: support Windows
 ifeq ($(UNAME_S),Linux)
@@ -66,97 +70,15 @@ endif
 # TODO: probably these flags need to be tweaked on some architectures
 #       feel free to update the Makefile for your architecture and send a pull request or issue
 ifeq ($(UNAME_M),$(filter $(UNAME_M),x86_64 i686))
-	ifeq ($(UNAME_S),Darwin)
-		CFLAGS += -mf16c
-		AVX1_M := $(shell sysctl machdep.cpu.features)
-		ifneq (,$(findstring FMA,$(AVX1_M)))
-			CFLAGS += -mfma
-		endif
-		ifneq (,$(findstring AVX1.0,$(AVX1_M)))
-			CFLAGS += -mavx
-		endif
-		AVX2_M := $(shell sysctl machdep.cpu.leaf7_features)
-		ifneq (,$(findstring AVX2,$(AVX2_M)))
-			CFLAGS += -mavx2
-		endif
-	else ifeq ($(UNAME_S),Linux)
-		AVX1_M := $(shell grep "avx " /proc/cpuinfo)
-		ifneq (,$(findstring avx,$(AVX1_M)))
-			CFLAGS += -mavx
-		endif
-		AVX2_M := $(shell grep "avx2 " /proc/cpuinfo)
-		ifneq (,$(findstring avx2,$(AVX2_M)))
-			CFLAGS += -mavx2
-		endif
-		FMA_M := $(shell grep "fma " /proc/cpuinfo)
-		ifneq (,$(findstring fma,$(FMA_M)))
-			CFLAGS += -mfma
-		endif
-		F16C_M := $(shell grep "f16c " /proc/cpuinfo)
-		ifneq (,$(findstring f16c,$(F16C_M)))
-			CFLAGS += -mf16c
-		endif
-		SSE3_M := $(shell grep "sse3 " /proc/cpuinfo)
-		ifneq (,$(findstring sse3,$(SSE3_M)))
-			CFLAGS += -msse3
-		endif
-		AVX512F_M := $(shell grep "avx512f " /proc/cpuinfo)
-		ifneq (,$(findstring avx512f,$(AVX512F_M)))
-			CFLAGS += -mavx512f
-		endif
-		AVX512BW_M := $(shell grep "avx512bw " /proc/cpuinfo)
-		ifneq (,$(findstring avx512bw,$(AVX512BW_M)))
-			CFLAGS += -mavx512bw
-		endif
-		AVX512DQ_M := $(shell grep "avx512dq " /proc/cpuinfo)
-		ifneq (,$(findstring avx512dq,$(AVX512DQ_M)))
-			CFLAGS += -mavx512dq
-		endif
-		AVX512VL_M := $(shell grep "avx512vl " /proc/cpuinfo)
-		ifneq (,$(findstring avx512vl,$(AVX512VL_M)))
-			CFLAGS += -mavx512vl
-		endif
-		AVX512CD_M := $(shell grep "avx512cd " /proc/cpuinfo)
-		ifneq (,$(findstring avx512cd,$(AVX512CD_M)))
-			CFLAGS += -mavx512cd
-		endif
-		AVX512ER_M := $(shell grep "avx512er " /proc/cpuinfo)
-		ifneq (,$(findstring avx512er,$(AVX512ER_M)))
-			CFLAGS += -mavx512er
-		endif
-		AVX512IFMA_M := $(shell grep "avx512ifma " /proc/cpuinfo)
-		ifneq (,$(findstring avx512ifma,$(AVX512IFMA_M)))
-			CFLAGS += -mavx512ifma
-		endif
-		AVX512PF_M := $(shell grep "avx512pf " /proc/cpuinfo)
-		ifneq (,$(findstring avx512pf,$(AVX512PF_M)))
-			CFLAGS += -mavx512pf
-		endif
-	else ifeq ($(UNAME_S),Haiku)
-		AVX1_M := $(shell sysinfo -cpu | grep -w "AVX")
-		ifneq (,$(findstring AVX,$(AVX1_M)))
-			CFLAGS += -mavx
-		endif
-		AVX2_M := $(shell sysinfo -cpu | grep -w "AVX2")
-		ifneq (,$(findstring AVX2,$(AVX2_M)))
-			CFLAGS += -mavx2
-		endif
-		FMA_M := $(shell sysinfo -cpu | grep -w "FMA")
-		ifneq (,$(findstring FMA,$(FMA_M)))
-			CFLAGS += -mfma
-		endif
-		F16C_M := $(shell sysinfo -cpu | grep -w "F16C")
-		ifneq (,$(findstring F16C,$(F16C_M)))
-			CFLAGS += -mf16c
-		endif
-	else
-		CFLAGS += -mfma -mf16c -mavx -mavx2
-	endif
+	# Use all CPU extensions that are available:
+	CFLAGS += -march=native -mtune=native
+	CXXFLAGS += -march=native -mtune=native
 endif
 ifneq ($(filter ppc64%,$(UNAME_M)),)
 	POWER9_M := $(shell grep "POWER9" /proc/cpuinfo)
 	ifneq (,$(findstring POWER9,$(POWER9_M)))
-		CFLAGS += -mpower9-vector
+		CFLAGS += -mcpu=power9
+		CXXFLAGS += -mcpu=power9
 	endif
 	# Require c++23's std::byteswap for big-endian support.
 	ifeq ($(UNAME_M),ppc64)
@@ -211,7 +133,7 @@ $(info I CC:       $(CCV))
 $(info I CXX:      $(CXXV))
 $(info )
 
-default: main quantize
+default: main quantize perplexity embedding
 
 #
 # Build library
@@ -220,19 +142,35 @@ default: main quantize
 ggml.o: ggml.c ggml.h
 	$(CC)  $(CFLAGS)   -c ggml.c -o ggml.o
 
-utils.o: utils.cpp utils.h
-	$(CXX) $(CXXFLAGS) -c utils.cpp -o utils.o
+llama.o: llama.cpp llama.h llama_util.h llama_internal.h
+	$(CXX) $(CXXFLAGS) -c llama.cpp -o llama.o
+
+common.o: examples/common.cpp examples/common.h
+	$(CXX) $(CXXFLAGS) -c examples/common.cpp -o common.o
 
 clean:
-	rm -f *.o main quantize
+	rm -vf *.o main quantize quantize-stats perplexity embedding
 
-main: main.cpp ggml.o utils.o
-	$(CXX) $(CXXFLAGS) main.cpp ggml.o utils.o -o main $(LDFLAGS)
-	@echo "\x1b[36mrun ./main -h for help\x1b[0m"
+main: examples/main/main.cpp ggml.o llama.o common.o
+	$(CXX) $(CXXFLAGS) examples/main/main.cpp ggml.o llama.o common.o -o main $(LDFLAGS)
+	@echo
+	@echo '====  Run ./main -h for help.  ===='
+	@echo
 
-quantize: quantize.cpp ggml.o utils.o
-	$(CXX) $(CXXFLAGS) quantize.cpp ggml.o utils.o -o quantize $(LDFLAGS)
+quantize: examples/quantize/quantize.cpp ggml.o llama.o
+	$(CXX) $(CXXFLAGS) examples/quantize/quantize.cpp ggml.o llama.o -o quantize $(LDFLAGS)
 
+quantize-stats: examples/quantize-stats/quantize-stats.cpp ggml.o llama.o
+	$(CXX) $(CXXFLAGS) examples/quantize-stats/quantize-stats.cpp ggml.o llama.o -o quantize-stats $(LDFLAGS)
+
+perplexity: examples/perplexity/perplexity.cpp ggml.o llama.o common.o
+	$(CXX) $(CXXFLAGS) examples/perplexity/perplexity.cpp ggml.o llama.o common.o -o perplexity $(LDFLAGS)
+
+embedding: examples/embedding/embedding.cpp ggml.o llama.o common.o
+	$(CXX) $(CXXFLAGS) examples/embedding/embedding.cpp ggml.o llama.o common.o -o embedding $(LDFLAGS)
+
+libllama.so: llama.o ggml.o
+	$(CXX) $(CXXFLAGS) -shared -fPIC -o libllama.so llama.o ggml.o $(LDFLAGS)
 #
 # Tests
 #
